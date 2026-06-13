@@ -4,8 +4,10 @@ import Link from "next/link";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { budgetMonthForDate } from "../lib/budget";
 import { cardOutstanding, cardSummaries, categoryBreakdown, claimCommandCenter, companyExpenseSummary, dashboardSummary, formatMoney, monthlyCashflow, otClaimSummary, otExpectedAmount, reconciliationItems, unpaidBills, validationSignals, walletBalances } from "../lib/calculations";
+import { ensureHousehold, getCurrentCloudUser, loadLatestCloudSnapshot, loginOrCreateCloudUser, logoutCloudUser, saveCloudSnapshot, type CloudUser } from "../lib/cloud-sync";
 import { downloadCsvBundle, importCsvBundle } from "../lib/csv";
 import { defaultFinanceData, loadFinanceData, resetFinanceData, saveFinanceData } from "../lib/storage";
+import { isSupabaseConfigured } from "../lib/supabase";
 import type { CompanyExpenseItem, CompanyOption, FinanceData, OtClaimItem, Transaction, TransactionType, ViewKey } from "../lib/types";
 
 const navItems: Array<{ key: ViewKey; href: string; label: string }> = [
@@ -109,15 +111,109 @@ function labelCompanyExpenseType(value: string): string {
 export function FinanceApp({ initialView }: { initialView: ViewKey }) {
   const [data, setData] = useState<FinanceData>(() => defaultFinanceData());
   const [importMessage, setImportMessage] = useState("");
+  const [cloudUser, setCloudUser] = useState<CloudUser | null>(null);
+  const [householdId, setHouseholdId] = useState("");
+  const [cloudEmail, setCloudEmail] = useState("");
+  const [cloudPassword, setCloudPassword] = useState("");
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [cloudMessage, setCloudMessage] = useState("");
   const summary = useMemo(() => dashboardSummary(data), [data]);
 
   useEffect(() => {
     setData(loadFinanceData());
   }, []);
 
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setCloudMessage("Cloud sync is not configured yet.");
+      return;
+    }
+
+    getCurrentCloudUser()
+      .then(async (user) => {
+        if (!user) {
+          setCloudMessage("Login to save or load cloud data.");
+          return;
+        }
+        setCloudUser(user);
+        const nextHouseholdId = await ensureHousehold(user);
+        setHouseholdId(nextHouseholdId);
+        setCloudMessage("Cloud ready. Use Save Cloud or Load Cloud.");
+      })
+      .catch((error) => setCloudMessage(`Cloud setup failed: ${error.message}`));
+  }, []);
+
   function updateData(next: FinanceData) {
     setData(next);
     saveFinanceData(next);
+  }
+
+  async function loginCloud() {
+    if (!cloudEmail || !cloudPassword) {
+      setCloudMessage("Enter email and password first.");
+      return;
+    }
+    setCloudBusy(true);
+    try {
+      const user = await loginOrCreateCloudUser(cloudEmail, cloudPassword);
+      const nextHouseholdId = await ensureHousehold(user);
+      setCloudUser(user);
+      setHouseholdId(nextHouseholdId);
+      setCloudMessage("Login ready. Use Save Cloud to upload this browser data.");
+    } catch (error) {
+      setCloudMessage(error instanceof Error ? error.message : "Cloud login failed.");
+    } finally {
+      setCloudBusy(false);
+    }
+  }
+
+  async function logoutCloud() {
+    setCloudBusy(true);
+    try {
+      await logoutCloudUser();
+      setCloudUser(null);
+      setHouseholdId("");
+      setCloudMessage("Logged out.");
+    } finally {
+      setCloudBusy(false);
+    }
+  }
+
+  async function saveCloud() {
+    if (!householdId) {
+      setCloudMessage("Login first.");
+      return;
+    }
+    setCloudBusy(true);
+    try {
+      await saveCloudSnapshot(householdId, data);
+      setCloudMessage("Saved to Supabase cloud.");
+    } catch (error) {
+      setCloudMessage(error instanceof Error ? error.message : "Cloud save failed.");
+    } finally {
+      setCloudBusy(false);
+    }
+  }
+
+  async function loadCloud() {
+    if (!householdId) {
+      setCloudMessage("Login first.");
+      return;
+    }
+    setCloudBusy(true);
+    try {
+      const next = await loadLatestCloudSnapshot(householdId);
+      if (!next) {
+        setCloudMessage("No cloud snapshot yet. Use Save Cloud first.");
+        return;
+      }
+      updateData(next);
+      setCloudMessage("Loaded latest Supabase cloud snapshot.");
+    } catch (error) {
+      setCloudMessage(error instanceof Error ? error.message : "Cloud load failed.");
+    } finally {
+      setCloudBusy(false);
+    }
   }
 
   async function importFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -179,6 +275,24 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
             </label>
             <button className="ghost" onClick={() => downloadCsvBundle(data)}>Export CSV</button>
             <button className="ghost danger" onClick={() => updateData(resetFinanceData())}>Reset Sample</button>
+            <div className="cloud-panel">
+              <div className="cloud-title">Cloud Sync</div>
+              {cloudUser ? (
+                <>
+                  <div className="cloud-user">{cloudUser.email ?? "Logged in"}</div>
+                  <button className="ghost" disabled={cloudBusy} onClick={saveCloud}>Save Cloud</button>
+                  <button className="ghost" disabled={cloudBusy} onClick={loadCloud}>Load Cloud</button>
+                  <button className="ghost" disabled={cloudBusy} onClick={logoutCloud}>Logout</button>
+                </>
+              ) : (
+                <>
+                  <input value={cloudEmail} onChange={(event) => setCloudEmail(event.target.value)} placeholder="email" type="email" />
+                  <input value={cloudPassword} onChange={(event) => setCloudPassword(event.target.value)} placeholder="password" type="password" />
+                  <button className="ghost" disabled={cloudBusy || !isSupabaseConfigured} onClick={loginCloud}>Login / Create</button>
+                </>
+              )}
+              <div className="cloud-message">{cloudMessage}</div>
+            </div>
           </div>
         </details>
       </header>

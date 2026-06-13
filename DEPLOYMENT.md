@@ -19,6 +19,15 @@ Build command: npm run build
 Output: Vercel default
 ```
 
+Environment variables:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
+```
+
+Use the Supabase project URL without `/rest/v1`. Do not add the Supabase secret key to Vercel for this browser app.
+
 ## Important MVP Limitation
 
 The current app is local-first. Browser storage is not a shared database.

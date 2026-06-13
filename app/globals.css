@@ -123,6 +123,35 @@ h2 {
   z-index: 5;
 }
 
+.cloud-panel {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  width: 100%;
+}
+
+.cloud-title {
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cloud-user,
+.cloud-message {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cloud-panel input {
+  min-height: 38px;
+  width: 100%;
+}
+
 button,
 .nav a,
 .import-button {
