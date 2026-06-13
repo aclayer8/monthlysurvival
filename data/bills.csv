@@ -1,0 +1,3 @@
+id,name,amount,due_date,planned_pay_date,status,source
+demo-bill-internet,Internet bill,750,2026-07-01,2026-06-30,unpaid,Demo monthly bill
+demo-bill-card,Main card statement,300,2026-07-01,2026-06-30,unpaid,Demo card statement

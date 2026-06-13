@@ -1,0 +1,9 @@
+kind,name,active
+site,Customer A,true
+site,Customer B,true
+project,Network Project,true
+project,Security Project,true
+place,Site A,true
+place,Site B,true
+sale,Sales A,true
+sale,Sales B,true

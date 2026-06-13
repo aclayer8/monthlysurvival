@@ -1,0 +1,3 @@
+id,date,amount,type,category,wallet,from_wallet,to_wallet,payment_method,card,note,tags,budget_month,linked_type,linked_id,direction,cleared_status
+demo-salary,2026-05-29,30000,income,salary,TTB,,,promptpay,,Demo salary for June Budget,"demo,salary",June Budget,manual,,in,cleared
+demo-grocery,2026-06-14,159,expense,shopping,KBANK,,,wallet,,Demo shopping transaction,demo,June Budget,manual,,out,cleared

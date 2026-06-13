@@ -1,0 +1,4 @@
+id,claim_month,date,site,project,place,sale_name,sr,detail,expense_type,amount,status,note
+demo-ce-001,June Budget,2026-06-04,Customer A,Network Project,Site A,Sales A,SR-0001,Onsite support travel,Travel,900,draft,Demo data only
+demo-ce-002,June Budget,2026-06-04,Customer A,Network Project,Site A,Sales A,SR-0001,Onsite toll fee,Toll,120,draft,Demo data only
+demo-ce-003,June Budget,2026-06-05,Customer B,Security Project,Site B,Sales B,SR-0002,Training allowance,Training,400,draft,Demo data only

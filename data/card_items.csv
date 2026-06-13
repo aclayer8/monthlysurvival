@@ -1,0 +1,2 @@
+id,date,card,amount,merchant_note,category,claim_status,paid_status,statement_month
+demo-card-001,2026-06-14,Main Card,300,Demo toll top-up by credit card,transport,review,unpaid,June Budget

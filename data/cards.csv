@@ -1,0 +1,3 @@
+card_name,statement_cycle,due_day,current_balance
+Main Card,monthly statement,1,0
+Backup Card,monthly statement,5,0
