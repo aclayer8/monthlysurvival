@@ -27,6 +27,9 @@ export async function loginOrCreateCloudUser(email: string, password: string): P
   if (signup.error || !signup.data.user) {
     throw signup.error ?? login.error ?? new Error("Login failed.");
   }
+  if (!signup.data.session) {
+    throw new Error("Account created. Please confirm email if required, then login again.");
+  }
 
   return { id: signup.data.user.id, email: signup.data.user.email ?? undefined };
 }

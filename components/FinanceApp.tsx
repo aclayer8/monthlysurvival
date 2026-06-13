@@ -161,6 +161,21 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
     }
   }
 
+  async function resolveCloudHousehold(): Promise<string | null> {
+    if (householdId) return householdId;
+    const user = await getCurrentCloudUser();
+    if (!user) {
+      setCloudUser(null);
+      setCloudMessage("Login first. If you just created an account, confirm email then login again.");
+      return null;
+    }
+
+    setCloudUser(user);
+    const nextHouseholdId = await ensureHousehold(user);
+    setHouseholdId(nextHouseholdId);
+    return nextHouseholdId;
+  }
+
   async function logoutCloud() {
     setCloudBusy(true);
     try {
@@ -174,13 +189,11 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
   }
 
   async function saveCloud() {
-    if (!householdId) {
-      setCloudMessage("Login first.");
-      return;
-    }
     setCloudBusy(true);
     try {
-      await saveCloudSnapshot(householdId, data);
+      const readyHouseholdId = await resolveCloudHousehold();
+      if (!readyHouseholdId) return;
+      await saveCloudSnapshot(readyHouseholdId, data);
       setCloudMessage("Saved to Supabase cloud.");
     } catch (error) {
       setCloudMessage(error instanceof Error ? error.message : "Cloud save failed.");
@@ -190,13 +203,11 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
   }
 
   async function loadCloud() {
-    if (!householdId) {
-      setCloudMessage("Login first.");
-      return;
-    }
     setCloudBusy(true);
     try {
-      const next = await loadLatestCloudSnapshot(householdId);
+      const readyHouseholdId = await resolveCloudHousehold();
+      if (!readyHouseholdId) return;
+      const next = await loadLatestCloudSnapshot(readyHouseholdId);
       if (!next) {
         setCloudMessage("No cloud snapshot yet. Use Save Cloud first.");
         return;
