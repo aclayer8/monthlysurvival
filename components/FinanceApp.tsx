@@ -7,7 +7,6 @@ import { cardOutstanding, cardSummaries, categoryBreakdown, claimCommandCenter, 
 import { ensureHousehold, getCurrentCloudUser, loadLatestCloudSnapshot, loginOrCreateCloudUser, logoutCloudUser, saveCloudSnapshot, type CloudUser } from "../lib/cloud-sync";
 import { downloadCsvBundle, importCsvBundle } from "../lib/csv";
 import { defaultFinanceData, loadFinanceData, resetFinanceData, saveFinanceData } from "../lib/storage";
-import { isSupabaseConfigured } from "../lib/supabase";
 import type { CompanyExpenseItem, CompanyOption, FinanceData, OtClaimItem, Transaction, TransactionType, ViewKey } from "../lib/types";
 
 const navItems: Array<{ key: ViewKey; href: string; label: string }> = [
@@ -124,11 +123,6 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setCloudMessage("Cloud sync is not configured yet.");
-      return;
-    }
-
     getCurrentCloudUser()
       .then(async (user) => {
         if (!user) {
@@ -288,7 +282,7 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
                 <>
                   <input value={cloudEmail} onChange={(event) => setCloudEmail(event.target.value)} placeholder="email" type="email" />
                   <input value={cloudPassword} onChange={(event) => setCloudPassword(event.target.value)} placeholder="password" type="password" />
-                  <button className="ghost" disabled={cloudBusy || !isSupabaseConfigured} onClick={loginCloud}>Login / Create</button>
+                  <button className="ghost" disabled={cloudBusy} onClick={loginCloud}>Login / Create</button>
                 </>
               )}
               <div className="cloud-message">{cloudMessage}</div>

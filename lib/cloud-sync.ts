@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { getSupabaseClient } from "./supabase";
 import type { FinanceData } from "./types";
 
 export type CloudUser = {
@@ -7,6 +7,7 @@ export type CloudUser = {
 };
 
 export async function getCurrentCloudUser(): Promise<CloudUser | null> {
+  const supabase = await getSupabaseClient();
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
@@ -14,6 +15,7 @@ export async function getCurrentCloudUser(): Promise<CloudUser | null> {
 }
 
 export async function loginOrCreateCloudUser(email: string, password: string): Promise<CloudUser> {
+  const supabase = await getSupabaseClient();
   if (!supabase) throw new Error("Supabase is not configured.");
 
   const login = await supabase.auth.signInWithPassword({ email, password });
@@ -30,11 +32,13 @@ export async function loginOrCreateCloudUser(email: string, password: string): P
 }
 
 export async function logoutCloudUser(): Promise<void> {
+  const supabase = await getSupabaseClient();
   if (!supabase) return;
   await supabase.auth.signOut();
 }
 
 export async function ensureHousehold(user: CloudUser): Promise<string> {
+  const supabase = await getSupabaseClient();
   if (!supabase) throw new Error("Supabase is not configured.");
 
   const existing = await supabase
@@ -66,6 +70,7 @@ export async function ensureHousehold(user: CloudUser): Promise<string> {
 }
 
 export async function saveCloudSnapshot(householdId: string, data: FinanceData): Promise<void> {
+  const supabase = await getSupabaseClient();
   if (!supabase) throw new Error("Supabase is not configured.");
   const user = await getCurrentCloudUser();
   const result = await supabase.from("finance_snapshots").insert({
@@ -78,6 +83,7 @@ export async function saveCloudSnapshot(householdId: string, data: FinanceData):
 }
 
 export async function loadLatestCloudSnapshot(householdId: string): Promise<FinanceData | null> {
+  const supabase = await getSupabaseClient();
   if (!supabase) throw new Error("Supabase is not configured.");
   const result = await supabase
     .from("finance_snapshots")
