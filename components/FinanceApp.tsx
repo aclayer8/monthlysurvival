@@ -107,11 +107,26 @@ function labelCompanyExpenseType(value: string): string {
   return companyExpenseTypeLabels[value] ?? value;
 }
 
+function errorDetail(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message || fallback;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [
+      typeof record.message === "string" ? record.message : "",
+      typeof record.code === "string" ? `code ${record.code}` : "",
+      typeof record.details === "string" ? record.details : "",
+      typeof record.hint === "string" ? `hint: ${record.hint}` : "",
+    ].filter(Boolean);
+
+    if (parts.length) return parts.join(" | ");
+  }
+
+  return fallback;
+}
+
 function cloudErrorMessage(error: unknown, action: "save" | "load" | "setup" | "login"): string {
   const fallback = `Cloud ${action} failed.`;
-  if (!(error instanceof Error)) return fallback;
-
-  const detail = error.message || fallback;
+  const detail = errorDetail(error, fallback);
   const lower = detail.toLowerCase();
 
   if (lower.includes("supabase is not configured")) {
