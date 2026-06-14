@@ -1,5 +1,10 @@
+import { AuthGate } from "../../components/AuthGate";
 import { FinanceApp } from "../../components/FinanceApp";
 
 export default function ClaimsPage() {
-  return <FinanceApp initialView="claims" />;
+  return (
+    <AuthGate>
+      <FinanceApp initialView="claims" />
+    </AuthGate>
+  );
 }

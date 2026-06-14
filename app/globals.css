@@ -34,6 +34,63 @@ main {
   padding: 24px;
 }
 
+.login-page,
+.auth-loading {
+  align-items: center;
+  display: flex;
+  min-height: 100vh;
+  justify-content: center;
+}
+
+.login-card {
+  background: linear-gradient(135deg, #191a24 0%, #2d2444 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
+  max-width: 460px;
+  padding: 28px;
+  width: min(100%, 460px);
+}
+
+.login-card.compact {
+  max-width: 380px;
+}
+
+.login-card h1 {
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+.login-copy,
+.login-message {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.login-form {
+  display: grid;
+  gap: 14px;
+  margin: 22px 0 14px;
+}
+
+.login-form label {
+  color: var(--muted);
+  display: grid;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 7px;
+}
+
+.login-form input,
+.cloud-panel input {
+  background: rgba(248, 248, 242, 0.08);
+  border: 1px solid rgba(248, 248, 242, 0.18);
+  border-radius: 8px;
+  color: var(--ink);
+  min-height: 42px;
+  padding: 10px 12px;
+}
+
 .topbar {
   align-items: center;
   background: linear-gradient(135deg, #191a24 0%, #2d2444 100%);
