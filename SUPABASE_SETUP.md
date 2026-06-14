@@ -55,7 +55,7 @@ on finance_snapshots(household_id, created_at desc);
 
 ## Row Level Security
 
-Enable RLS and create least-privilege policies for authenticated household members.
+Enable RLS and create owner-based policies for the current personal-use app. These policies avoid cross-table recursion between `households` and `household_members`.
 
 ```sql
 alter table households enable row level security;
@@ -69,18 +69,11 @@ to authenticated
 with check (owner_id = auth.uid());
 
 drop policy if exists "members can read households" on households;
-create policy "members can read households"
+drop policy if exists "owners can read households" on households;
+create policy "owners can read households"
 on households for select
 to authenticated
-using (
-  owner_id = auth.uid()
-  or exists (
-    select 1
-    from household_members hm
-    where hm.household_id = households.id
-    and hm.user_id = auth.uid()
-  )
-);
+using (owner_id = auth.uid());
 
 drop policy if exists "owners can update households" on households;
 create policy "owners can update households"
@@ -104,7 +97,8 @@ with check (
 );
 
 drop policy if exists "members can read household members" on household_members;
-create policy "members can read household members"
+drop policy if exists "owners can read household members" on household_members;
+create policy "owners can read household members"
 on household_members for select
 to authenticated
 using (
@@ -139,23 +133,24 @@ with check (
 );
 
 drop policy if exists "members can manage finance snapshots" on finance_snapshots;
-create policy "members can manage finance snapshots"
+drop policy if exists "owners can manage finance snapshots" on finance_snapshots;
+create policy "owners can manage finance snapshots"
 on finance_snapshots for all
 to authenticated
 using (
   exists (
     select 1
-    from household_members hm
-    where hm.household_id = finance_snapshots.household_id
-    and hm.user_id = auth.uid()
+    from households h
+    where h.id = finance_snapshots.household_id
+    and h.owner_id = auth.uid()
   )
 )
 with check (
   exists (
     select 1
-    from household_members hm
-    where hm.household_id = finance_snapshots.household_id
-    and hm.user_id = auth.uid()
+    from households h
+    where h.id = finance_snapshots.household_id
+    and h.owner_id = auth.uid()
   )
 );
 ```
