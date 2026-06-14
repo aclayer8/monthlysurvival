@@ -1,11 +1,12 @@
 import type { FinanceData } from "./types";
+import { canonicalCardName, normalizeCard } from "./card-cycles";
 
 type Row = Record<string, string | number | undefined>;
 
 const tableMap: Record<keyof FinanceData, string[]> = {
   transactions: ["id", "date", "amount", "type", "category", "wallet", "from_wallet", "to_wallet", "payment_method", "card", "note", "tags", "budget_month", "linked_type", "linked_id", "direction", "cleared_status"],
   wallet_snapshots: ["wallet", "snapshot_date", "balance"],
-  cards: ["card_name", "statement_cycle", "due_day", "current_balance"],
+  cards: ["card_name", "statement_cycle", "statement_cut_day", "due_day", "current_balance"],
   card_items: ["id", "date", "card", "amount", "merchant_note", "category", "claim_status", "paid_status", "statement_month"],
   claims: ["claim_month", "submit_by", "expected_paid_date", "status", "paid_amount"],
   claim_items: ["source_type", "source_id", "amount", "work_personal_mixed", "status", "note"],
@@ -120,6 +121,7 @@ function rowsToTable(key: keyof FinanceData, rows: Row[]): FinanceData[keyof Fin
     return rows.map((row) => ({
       ...row,
       amount: numberValue(row.amount),
+      card: canonicalCardName(String(row.card ?? "")),
       linked_type: row.linked_type || "manual",
       direction: row.direction || (row.type === "income" || row.type === "reimbursement" ? "in" : "out"),
       cleared_status: row.cleared_status || "cleared",
@@ -129,10 +131,17 @@ function rowsToTable(key: keyof FinanceData, rows: Row[]): FinanceData[keyof Fin
     return rows.map((row) => ({ ...row, balance: numberValue(row.balance) })) as FinanceData[keyof FinanceData];
   }
   if (key === "cards") {
-    return rows.map((row) => ({ ...row, due_day: numberValue(row.due_day), current_balance: numberValue(row.current_balance) })) as FinanceData[keyof FinanceData];
+    return rows.map((row) => normalizeCard({
+      ...row,
+      card_name: String(row.card_name ?? ""),
+      statement_cycle: String(row.statement_cycle ?? ""),
+      statement_cut_day: numberValue(row.statement_cut_day),
+      due_day: numberValue(row.due_day),
+      current_balance: numberValue(row.current_balance),
+    })) as FinanceData[keyof FinanceData];
   }
   if (key === "card_items") {
-    return rows.map((row) => ({ ...row, amount: numberValue(row.amount) })) as FinanceData[keyof FinanceData];
+    return rows.map((row) => ({ ...row, card: canonicalCardName(String(row.card ?? "")), amount: numberValue(row.amount) })) as FinanceData[keyof FinanceData];
   }
   if (key === "claims") {
     return rows.map((row) => ({ ...row, paid_amount: numberValue(row.paid_amount) })) as FinanceData[keyof FinanceData];

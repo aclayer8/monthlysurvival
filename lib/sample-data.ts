@@ -1,4 +1,5 @@
 import { budgetMonthForDate } from "./budget";
+import { defaultCards } from "./card-cycles";
 import type { FinanceData, Transaction } from "./types";
 
 const tx = (transaction: Omit<Transaction, "budget_month"> & { budget_month?: string }): Transaction => ({
@@ -100,15 +101,12 @@ export const sampleData: FinanceData = {
       tags: "demo",
     }),
   ],
-  cards: [
-    { card_name: "Main Card", statement_cycle: "monthly statement", due_day: 1, current_balance: 0 },
-    { card_name: "Backup Card", statement_cycle: "monthly statement", due_day: 5, current_balance: 0 },
-  ],
+  cards: defaultCards(),
   card_items: [
     {
       id: "demo-card-001",
       date: "2026-06-14",
-      card: "Main Card",
+      card: "KTC",
       amount: 300,
       merchant_note: "Demo toll top-up by credit card",
       category: "transport",
@@ -167,7 +165,7 @@ export const sampleData: FinanceData = {
     },
     {
       id: "demo-bill-card",
-      name: "Main card statement",
+      name: "KTC statement",
       amount: 300,
       due_date: "2026-07-01",
       planned_pay_date: "2026-06-30",

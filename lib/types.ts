@@ -35,6 +35,7 @@ export type WalletSnapshot = {
 export type Card = {
   card_name: string;
   statement_cycle: string;
+  statement_cut_day?: number;
   due_day: number;
   current_balance: number;
 };

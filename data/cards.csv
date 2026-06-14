@@ -1,3 +1,7 @@
-card_name,statement_cycle,due_day,current_balance
-Main Card,monthly statement,1,0
-Backup Card,monthly statement,5,0
+card_name,statement_cycle,statement_cut_day,due_day,current_balance
+KTC,cut 17 / due 1,17,1,0
+Firstchoice,cut 12 / due 2,12,2,0
+T1 Central,cut 18 / due 7,18,7,0
+BBL,cut 7 / due 22,7,22,0
+KBANK,cut 20 / due 5,20,5,0
+Shopee,cut 25 / due 5,25,5,0

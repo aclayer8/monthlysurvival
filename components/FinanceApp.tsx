@@ -575,6 +575,8 @@ function Dashboard({ data }: { data: FinanceData }) {
 }
 
 function AddTransaction({ data, onChange }: { data: FinanceData; onChange: (data: FinanceData) => void }) {
+  const cardOptions = data.cards.map((card) => card.card_name);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -606,7 +608,7 @@ function AddTransaction({ data, onChange }: { data: FinanceData; onChange: (data
           <label>Category<select name="category" defaultValue="food" required><option value="food">อาหาร</option><option value="groceries">ของเข้าบ้าน</option><option value="transport">เดินทาง / รถ</option><option value="utilities">ค่าน้ำไฟเน็ตมือถือ</option><option value="shopping">ซื้อของ</option><option value="personal">ใช้ส่วนตัว</option><option value="work_claim">รอเบิกบริษัท</option><option value="debt_loan">จ่ายหนี้ / ค่างวด</option><option value="salary">เงินเดือน</option><option value="ot_income">ค่า OT</option><option value="family_support">เงินสมทบครอบครัว</option></select></label>
           <label>Wallet<select name="wallet" defaultValue="KBANK"><option value="">-</option><option>KBANK</option><option>BBL</option><option>MAKE</option><option>TTB</option><option>CASH</option></select></label>
           <label>Method<select name="payment_method" defaultValue="promptpay"><option>promptpay</option><option>cash</option><option>wallet</option><option>auto_debit</option><option>credit_card</option></select></label>
-          <label>Card<select name="card" defaultValue=""><option value="">-</option><option>KTC</option><option>Firstchoice</option><option>Shopee</option><option>KBANK Card</option><option>BBL Credit</option></select></label>
+          <label>Card<select name="card" defaultValue=""><option value="">-</option>{cardOptions.map((card) => <option key={card}>{card}</option>)}</select></label>
           <label>Tags<input name="tags" placeholder="personal, work_claim, debt" /></label>
           <label className="wide">Note<input name="note" placeholder="จดสั้นๆ พอ" /></label>
           <button type="submit">Add Transaction</button>
@@ -659,6 +661,7 @@ function AddTransactionV2({ data, onChange }: { data: FinanceData; onChange: (da
     ...data.ot_claim_items.map((item) => ({ type: "ot_claim", id: item.id, label: `OT: ${item.date} ${item.detail}` })),
     ...data.claims.map((item) => ({ type: "claim", id: item.claim_month, label: `Claim: ${item.claim_month}` })),
   ];
+  const cardOptions = data.cards.map((card) => card.card_name);
 
   return (
     <section className="two-col">
@@ -673,7 +676,7 @@ function AddTransactionV2({ data, onChange }: { data: FinanceData; onChange: (da
           <label>From Wallet<select name="from_wallet" defaultValue=""><option value="">-</option><option>KBANK</option><option>BBL</option><option>MAKE</option><option>TTB</option><option>CASH</option></select></label>
           <label>To Wallet<select name="to_wallet" defaultValue=""><option value="">-</option><option>KBANK</option><option>BBL</option><option>MAKE</option><option>TTB</option><option>CASH</option></select></label>
           <label>Method<select name="payment_method" defaultValue="promptpay"><option>promptpay</option><option>cash</option><option>wallet</option><option>auto_debit</option><option>credit_card</option></select></label>
-          <label>Card<select name="card" defaultValue=""><option value="">-</option><option>KTC</option><option>Firstchoice</option><option>Shopee</option><option>KBANK Card</option><option>BBL Credit</option></select></label>
+          <label>Card<select name="card" defaultValue=""><option value="">-</option>{cardOptions.map((card) => <option key={card}>{card}</option>)}</select></label>
           <label>Direction<select name="direction" defaultValue="out"><option value="out">เงินออก</option><option value="in">เงินเข้า</option></select></label>
           <label>Status<select name="cleared_status" defaultValue="cleared"><option value="cleared">cleared</option><option value="pending">pending</option><option value="matched">matched</option></select></label>
           <label>Linked Type<select name="linked_type" defaultValue="manual"><option value="manual">manual</option><option value="bill">bill</option><option value="card_item">card_item</option><option value="company_expense">company_expense</option><option value="ot_claim">ot_claim</option><option value="claim">claim</option></select></label>
@@ -882,10 +885,16 @@ function Cards({ data }: { data: FinanceData }) {
   const summaries = cardSummaries(data);
   const totalTransport = summaries.reduce((sum, card) => sum + card.transportAmount, 0);
   const totalTransportCount = summaries.reduce((sum, card) => sum + card.transportCount, 0);
+  const totalDueThisPayday = summaries.reduce((sum, card) => sum + card.dueThisPaydayAmount, 0);
+  const totalTransportThisPayday = summaries.reduce((sum, card) => sum + card.transportThisPaydayAmount, 0);
+  const totalLaterCycle = summaries.reduce((sum, card) => sum + card.laterCycleAmount, 0);
   return (
     <section className="stack">
       <div className="hero-grid">
-        <Kpi title="Fuel/Transport This Cycle" value={formatMoney(totalTransport)} tone={totalTransport ? "amber" : "green"} />
+        <Kpi title="Payable This Payday" value={formatMoney(totalDueThisPayday)} tone={totalDueThisPayday ? "red" : "green"} />
+        <Kpi title="Fuel/Transport Payable" value={formatMoney(totalTransportThisPayday)} tone={totalTransportThisPayday ? "amber" : "green"} />
+        <Kpi title="After Cut / Later" value={formatMoney(totalLaterCycle)} tone={totalLaterCycle ? "blue" : "green"} />
+        <Kpi title="Fuel/Transport Total" value={formatMoney(totalTransport)} tone={totalTransport ? "amber" : "green"} />
         <Kpi title="Transport Items" value={String(totalTransportCount)} tone="blue" />
         {data.cards.map((card) => (
           <Kpi key={card.card_name} title={card.card_name} value={formatMoney(cardOutstanding(card.card_name, data.card_items, data.transactions))} tone="red" />
@@ -893,8 +902,25 @@ function Cards({ data }: { data: FinanceData }) {
       </div>
       <Panel title="Card Command Summary">
         <Table
-          headers={["Card", "Outstanding", "Fuel/Transport", "Transport Items", "Review", "Unpaid Items", "Cycle", "Due Day"]}
-          rows={summaries.map((card) => [card.card, formatMoney(card.outstanding), formatMoney(card.transportAmount), card.transportCount, formatMoney(card.reviewAmount), card.unpaidCount, card.statementCycle, card.dueDay])}
+          headers={["Card", "Outstanding", "Payable This Payday", "After Cut / Later", "Fuel Payable", "Fuel Later", "Cut", "Due", "Review", "Unpaid"]}
+          rows={summaries.map((card) => [
+            card.card,
+            formatMoney(card.outstanding),
+            formatMoney(card.dueThisPaydayAmount),
+            formatMoney(card.laterCycleAmount),
+            formatMoney(card.transportThisPaydayAmount),
+            formatMoney(card.transportLaterAmount),
+            card.statementCutDay,
+            card.dueDay,
+            formatMoney(card.reviewAmount),
+            card.unpaidCount,
+          ])}
+        />
+      </Panel>
+      <Panel title="Card Cycle Rules">
+        <Table
+          headers={["Card", "Statement Cut", "Payment Due", "Rule"]}
+          rows={data.cards.map((card) => [card.card_name, card.statement_cut_day ?? "-", card.due_day, card.statement_cycle])}
         />
       </Panel>
       <Panel title="Card Items / Statement Reconcile">

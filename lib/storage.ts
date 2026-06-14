@@ -1,6 +1,7 @@
 "use client";
 
 import { sampleData } from "./sample-data";
+import { canonicalCardName, mergeDefaultCards } from "./card-cycles";
 import type { FinanceData } from "./types";
 
 const STORAGE_KEY = "monthly-survival-data-v1";
@@ -44,6 +45,11 @@ export function normalizeFinanceData(data: FinanceData): FinanceData {
     company_expense_items: data.company_expense_items ?? [],
     company_options: data.company_options ?? [],
     ot_claim_items: data.ot_claim_items ?? [],
+    cards: mergeDefaultCards(data.cards ?? []),
+    card_items: (data.card_items ?? []).map((item) => ({
+      ...item,
+      card: canonicalCardName(item.card),
+    })),
     bills: (data.bills ?? []).map((bill, index) => ({
       ...bill,
       id: bill.id ?? `bill-${String(bill.name || index).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`,
@@ -53,6 +59,7 @@ export function normalizeFinanceData(data: FinanceData): FinanceData {
       wallet: normalizeWallet(transaction.wallet),
       from_wallet: normalizeWallet(transaction.from_wallet),
       to_wallet: normalizeWallet(transaction.to_wallet),
+      card: canonicalCardName(transaction.card),
       direction: transaction.direction ?? directionForType(transaction.type),
       cleared_status: transaction.cleared_status ?? "cleared",
       linked_type: transaction.linked_type ?? "manual",
