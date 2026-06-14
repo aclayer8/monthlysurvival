@@ -25,6 +25,14 @@ function directionForType(type: string): "in" | "out" {
   return type === "income" || type === "reimbursement" ? "in" : "out";
 }
 
+function normalizeTransactionWallet(transaction: FinanceData["transactions"][number]): string | undefined {
+  const wallet = normalizeWallet(transaction.wallet);
+  if (transaction.payment_method === "credit_card") return "";
+  if (transaction.payment_method === "cash") return wallet || "CASH";
+  if (!wallet && transaction.type !== "transfer" && directionForType(transaction.type) === "out") return "KBANK";
+  return wallet;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
@@ -56,7 +64,7 @@ export function normalizeFinanceData(data: FinanceData): FinanceData {
     })),
     transactions: (data.transactions ?? []).map((transaction) => ({
       ...transaction,
-      wallet: normalizeWallet(transaction.wallet),
+      wallet: normalizeTransactionWallet(transaction),
       from_wallet: normalizeWallet(transaction.from_wallet),
       to_wallet: normalizeWallet(transaction.to_wallet),
       card: canonicalCardName(transaction.card),

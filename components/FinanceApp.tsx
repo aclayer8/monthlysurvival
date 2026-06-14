@@ -579,14 +579,16 @@ function AddTransaction({ data, onChange }: { data: FinanceData; onChange: (data
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const date = String(form.get("date"));
+    const paymentMethod = String(form.get("payment_method") || "") as Transaction["payment_method"];
+    const wallet = paymentMethod === "cash" ? "CASH" : String(form.get("wallet") || "KBANK");
     const transaction: Transaction = {
       id: `t-${Date.now()}`,
       date,
       amount: Number(form.get("amount")),
       type: String(form.get("type")) as TransactionType,
       category: String(form.get("category")),
-      wallet: String(form.get("wallet") || ""),
-      payment_method: String(form.get("payment_method") || "") as Transaction["payment_method"],
+      wallet,
+      payment_method: paymentMethod,
       card: String(form.get("card") || ""),
       note: String(form.get("note") || ""),
       tags: String(form.get("tags") || ""),
@@ -628,18 +630,38 @@ function AddTransactionV2({ data, onChange }: { data: FinanceData; onChange: (da
     const form = new FormData(event.currentTarget);
     const date = String(form.get("date"));
     const type = String(form.get("type")) as TransactionType;
+    const paymentMethod = String(form.get("payment_method") || "") as Transaction["payment_method"];
+    const card = String(form.get("card") || "");
+    const selectedWallet = String(form.get("wallet") || "");
+    const wallet = paymentMethod === "credit_card"
+      ? ""
+      : paymentMethod === "cash"
+        ? "CASH"
+        : selectedWallet || "KBANK";
+    const amount = Number(form.get("amount"));
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      window.alert("Amount must be greater than 0.");
+      return;
+    }
+
+    if (paymentMethod === "credit_card" && !card) {
+      window.alert("Credit card transaction needs a card.");
+      return;
+    }
+
     const direction = String(form.get("direction") || (type === "income" || type === "reimbursement" ? "in" : "out")) as Transaction["direction"];
     const transaction: Transaction = {
       id: `t-${Date.now()}`,
       date,
-      amount: Number(form.get("amount")),
+      amount,
       type,
       category: String(form.get("category")),
-      wallet: String(form.get("wallet") || ""),
+      wallet,
       from_wallet: String(form.get("from_wallet") || ""),
       to_wallet: String(form.get("to_wallet") || ""),
-      payment_method: String(form.get("payment_method") || "") as Transaction["payment_method"],
-      card: String(form.get("card") || ""),
+      payment_method: paymentMethod,
+      card,
       note: String(form.get("note") || ""),
       tags: String(form.get("tags") || ""),
       budget_month: budgetMonthForDate(date),
