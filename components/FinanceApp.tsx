@@ -6,7 +6,7 @@ import { budgetMonthForDate } from "../lib/budget";
 import { cardOutstanding, cardSummaries, categoryBreakdown, claimCommandCenter, companyExpenseSummary, dashboardSummary, formatMoney, monthlyCashflow, otClaimSummary, otExpectedAmount, reconciliationItems, unpaidBills, validationSignals, walletBalances } from "../lib/calculations";
 import { ensureHousehold, getCurrentCloudUser, loadLatestCloudSnapshot, loginOrCreateCloudUser, logoutCloudUser, saveCloudSnapshot, type CloudUser } from "../lib/cloud-sync";
 import { downloadCsvBundle, importCsvBundle } from "../lib/csv";
-import { defaultFinanceData, loadFinanceData, resetFinanceData, saveFinanceData } from "../lib/storage";
+import { defaultFinanceData, loadFinanceData, normalizeFinanceData, parseFinanceDataBackup, resetFinanceData, saveFinanceData } from "../lib/storage";
 import type { CompanyExpenseItem, CompanyOption, FinanceData, OtClaimItem, Transaction, TransactionType, ViewKey } from "../lib/types";
 
 const navItems: Array<{ key: ViewKey; href: string; label: string }> = [
@@ -107,6 +107,32 @@ function labelCompanyExpenseType(value: string): string {
   return companyExpenseTypeLabels[value] ?? value;
 }
 
+function cloudErrorMessage(error: unknown, action: "save" | "load" | "setup" | "login"): string {
+  const fallback = `Cloud ${action} failed.`;
+  if (!(error instanceof Error)) return fallback;
+
+  const detail = error.message || fallback;
+  const lower = detail.toLowerCase();
+
+  if (lower.includes("supabase is not configured")) {
+    return "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in the deployed app environment.";
+  }
+  if (lower.includes("relation") && lower.includes("does not exist")) {
+    return `Supabase schema is incomplete: ${detail}. Run SUPABASE_SETUP.md in the Supabase SQL Editor.`;
+  }
+  if (lower.includes("schema cache") || lower.includes("could not find the table")) {
+    return `Supabase cannot find the required table: ${detail}. Run SUPABASE_SETUP.md and redeploy/retry.`;
+  }
+  if (lower.includes("row-level security") || lower.includes("permission denied") || lower.includes("violates row-level security")) {
+    return `Supabase RLS blocked this ${action}. Confirm the household_members policy and that the user is logged in. Detail: ${detail}`;
+  }
+  if (lower.includes("jwt") || lower.includes("auth") || lower.includes("session")) {
+    return `Cloud authentication is not ready. Login again, then retry. Detail: ${detail}`;
+  }
+
+  return detail;
+}
+
 export function FinanceApp({ initialView }: { initialView: ViewKey }) {
   const [data, setData] = useState<FinanceData>(() => defaultFinanceData());
   const [importMessage, setImportMessage] = useState("");
@@ -134,7 +160,7 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
         setHouseholdId(nextHouseholdId);
         setCloudMessage("Cloud ready. Use Save Cloud or Load Cloud.");
       })
-      .catch((error) => setCloudMessage(`Cloud setup failed: ${error.message}`));
+      .catch((error) => setCloudMessage(cloudErrorMessage(error, "setup")));
   }, []);
 
   function updateData(next: FinanceData) {
@@ -155,7 +181,7 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
       setHouseholdId(nextHouseholdId);
       setCloudMessage("Login ready. Use Save Cloud to upload this browser data.");
     } catch (error) {
-      setCloudMessage(error instanceof Error ? error.message : "Cloud login failed.");
+      setCloudMessage(cloudErrorMessage(error, "login"));
     } finally {
       setCloudBusy(false);
     }
@@ -196,7 +222,7 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
       await saveCloudSnapshot(readyHouseholdId, data);
       setCloudMessage("Saved to Supabase cloud.");
     } catch (error) {
-      setCloudMessage(error instanceof Error ? error.message : "Cloud save failed.");
+      setCloudMessage(cloudErrorMessage(error, "save"));
     } finally {
       setCloudBusy(false);
     }
@@ -212,10 +238,10 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
         setCloudMessage("No cloud snapshot yet. Use Save Cloud first.");
         return;
       }
-      updateData(next);
+      updateData(normalizeFinanceData(next));
       setCloudMessage("Loaded latest Supabase cloud snapshot.");
     } catch (error) {
-      setCloudMessage(error instanceof Error ? error.message : "Cloud load failed.");
+      setCloudMessage(cloudErrorMessage(error, "load"));
     } finally {
       setCloudBusy(false);
     }
@@ -247,13 +273,37 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
   async function loadJsonBackup(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    setCloudBusy(true);
     try {
-      const next = JSON.parse(await file.text()) as FinanceData;
+      const next = parseFinanceDataBackup(JSON.parse(await file.text()));
       updateData(next);
-      setImportMessage(`Loaded JSON backup: ${file.name}`);
-    } catch {
-      setImportMessage("JSON backup load failed. Please choose a Monthly Survival backup file.");
+
+      try {
+        const readyHouseholdId = await resolveCloudHousehold();
+
+        if (!readyHouseholdId) {
+          setImportMessage(`Loaded JSON backup: ${file.name}. Not saved to cloud yet; login then use Save Cloud.`);
+          return;
+        }
+
+        await saveCloudSnapshot(readyHouseholdId, next);
+        setImportMessage(`Loaded JSON backup: ${file.name}. Auto-saved to Supabase cloud.`);
+        setCloudMessage("Imported JSON backup and saved a new Supabase snapshot.");
+      } catch (cloudError) {
+        const message = cloudErrorMessage(cloudError, "save");
+        setImportMessage(`Loaded JSON backup: ${file.name}. Cloud save failed: ${message}`);
+        setCloudMessage(message);
+      }
+    } catch (error) {
+      const message = error instanceof SyntaxError
+        ? "JSON backup load failed. The selected file is not valid JSON."
+        : error instanceof Error
+          ? error.message
+          : "JSON backup load failed. Please choose a Monthly Survival backup file.";
+
+      setImportMessage(message);
     } finally {
+      setCloudBusy(false);
       event.target.value = "";
     }
   }
