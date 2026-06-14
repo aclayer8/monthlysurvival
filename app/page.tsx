@@ -1,5 +1,5 @@
-import { FinanceApp } from "../components/FinanceApp";
+import { LoginPage } from "../components/LoginPage";
 
-export default function DashboardPage() {
-  return <FinanceApp initialView="dashboard" />;
+export default function HomePage() {
+  return <LoginPage />;
 }

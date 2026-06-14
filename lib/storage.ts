@@ -24,7 +24,17 @@ function directionForType(type: string): "in" | "out" {
   return type === "income" || type === "reimbursement" ? "in" : "out";
 }
 
-function migrateFinanceData(data: FinanceData): FinanceData {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function requireArray(data: Record<string, unknown>, key: keyof FinanceData): void {
+  if (!Array.isArray(data[key])) {
+    throw new Error(`JSON backup is missing a valid ${key} array.`);
+  }
+}
+
+export function normalizeFinanceData(data: FinanceData): FinanceData {
   return {
     ...data,
     wallet_snapshots: (data.wallet_snapshots ?? []).map((snapshot) => ({
@@ -50,8 +60,23 @@ function migrateFinanceData(data: FinanceData): FinanceData {
   };
 }
 
+export function parseFinanceDataBackup(value: unknown): FinanceData {
+  if (!isRecord(value)) {
+    throw new Error("JSON backup must contain a Monthly Survival data object.");
+  }
+
+  requireArray(value, "transactions");
+  requireArray(value, "wallet_snapshots");
+  requireArray(value, "cards");
+  requireArray(value, "card_items");
+  requireArray(value, "claims");
+  requireArray(value, "claim_items");
+
+  return normalizeFinanceData(value as FinanceData);
+}
+
 export function defaultFinanceData(): FinanceData {
-  return migrateFinanceData(sampleData);
+  return normalizeFinanceData(sampleData);
 }
 
 function scoreFinanceData(data: FinanceData): number {
@@ -68,7 +93,7 @@ function readStoredFinanceData(key: string): FinanceData | null {
   const saved = window.localStorage.getItem(key);
   if (!saved) return null;
   try {
-    return migrateFinanceData(JSON.parse(saved) as FinanceData);
+    return normalizeFinanceData(JSON.parse(saved) as FinanceData);
   } catch {
     return null;
   }

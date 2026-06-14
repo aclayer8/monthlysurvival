@@ -1,5 +1,10 @@
+import { AuthGate } from "../../components/AuthGate";
 import { FinanceApp } from "../../components/FinanceApp";
 
 export default function WalletsPage() {
-  return <FinanceApp initialView="wallets" />;
+  return (
+    <AuthGate>
+      <FinanceApp initialView="wallets" />
+    </AuthGate>
+  );
 }

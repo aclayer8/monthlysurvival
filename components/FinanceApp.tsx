@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { budgetMonthForDate } from "../lib/budget";
 import { cardOutstanding, cardSummaries, categoryBreakdown, claimCommandCenter, companyExpenseSummary, dashboardSummary, formatMoney, monthlyCashflow, otClaimSummary, otExpectedAmount, reconciliationItems, unpaidBills, validationSignals, walletBalances } from "../lib/calculations";
-import { ensureHousehold, getCurrentCloudUser, loadLatestCloudSnapshot, loginOrCreateCloudUser, logoutCloudUser, saveCloudSnapshot, type CloudUser } from "../lib/cloud-sync";
+import { ensureHousehold, getCurrentCloudUser, loadLatestCloudSnapshot, logoutCloudUser, saveCloudSnapshot, type CloudUser } from "../lib/cloud-sync";
+import { cloudErrorMessage } from "../lib/cloud-errors";
 import { downloadCsvBundle, importCsvBundle } from "../lib/csv";
-import { defaultFinanceData, loadFinanceData, resetFinanceData, saveFinanceData } from "../lib/storage";
+import { defaultFinanceData, loadFinanceData, normalizeFinanceData, parseFinanceDataBackup, resetFinanceData, saveFinanceData } from "../lib/storage";
 import type { CompanyExpenseItem, CompanyOption, FinanceData, OtClaimItem, Transaction, TransactionType, ViewKey } from "../lib/types";
 
 const navItems: Array<{ key: ViewKey; href: string; label: string }> = [
-  { key: "dashboard", href: "/", label: "🏠 สรุป" },
+  { key: "dashboard", href: "/app", label: "🏠 สรุป" },
   { key: "add", href: "/add", label: "➕ จดรายการ" },
   { key: "wallets", href: "/wallets", label: "👛 กระเป๋า" },
   { key: "cards", href: "/cards", label: "💳 บัตร" },
@@ -108,12 +110,11 @@ function labelCompanyExpenseType(value: string): string {
 }
 
 export function FinanceApp({ initialView }: { initialView: ViewKey }) {
+  const router = useRouter();
   const [data, setData] = useState<FinanceData>(() => defaultFinanceData());
   const [importMessage, setImportMessage] = useState("");
   const [cloudUser, setCloudUser] = useState<CloudUser | null>(null);
   const [householdId, setHouseholdId] = useState("");
-  const [cloudEmail, setCloudEmail] = useState("");
-  const [cloudPassword, setCloudPassword] = useState("");
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudMessage, setCloudMessage] = useState("");
   const summary = useMemo(() => dashboardSummary(data), [data]);
@@ -134,31 +135,12 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
         setHouseholdId(nextHouseholdId);
         setCloudMessage("Cloud ready. Use Save Cloud or Load Cloud.");
       })
-      .catch((error) => setCloudMessage(`Cloud setup failed: ${error.message}`));
+      .catch((error) => setCloudMessage(cloudErrorMessage(error, "setup")));
   }, []);
 
   function updateData(next: FinanceData) {
     setData(next);
     saveFinanceData(next);
-  }
-
-  async function loginCloud() {
-    if (!cloudEmail || !cloudPassword) {
-      setCloudMessage("Enter email and password first.");
-      return;
-    }
-    setCloudBusy(true);
-    try {
-      const user = await loginOrCreateCloudUser(cloudEmail, cloudPassword);
-      const nextHouseholdId = await ensureHousehold(user);
-      setCloudUser(user);
-      setHouseholdId(nextHouseholdId);
-      setCloudMessage("Login ready. Use Save Cloud to upload this browser data.");
-    } catch (error) {
-      setCloudMessage(error instanceof Error ? error.message : "Cloud login failed.");
-    } finally {
-      setCloudBusy(false);
-    }
   }
 
   async function resolveCloudHousehold(): Promise<string | null> {
@@ -183,6 +165,7 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
       setCloudUser(null);
       setHouseholdId("");
       setCloudMessage("Logged out.");
+      router.replace("/");
     } finally {
       setCloudBusy(false);
     }
@@ -196,7 +179,7 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
       await saveCloudSnapshot(readyHouseholdId, data);
       setCloudMessage("Saved to Supabase cloud.");
     } catch (error) {
-      setCloudMessage(error instanceof Error ? error.message : "Cloud save failed.");
+      setCloudMessage(cloudErrorMessage(error, "save"));
     } finally {
       setCloudBusy(false);
     }
@@ -212,10 +195,10 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
         setCloudMessage("No cloud snapshot yet. Use Save Cloud first.");
         return;
       }
-      updateData(next);
+      updateData(normalizeFinanceData(next));
       setCloudMessage("Loaded latest Supabase cloud snapshot.");
     } catch (error) {
-      setCloudMessage(error instanceof Error ? error.message : "Cloud load failed.");
+      setCloudMessage(cloudErrorMessage(error, "load"));
     } finally {
       setCloudBusy(false);
     }
@@ -247,13 +230,37 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
   async function loadJsonBackup(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    setCloudBusy(true);
     try {
-      const next = JSON.parse(await file.text()) as FinanceData;
+      const next = parseFinanceDataBackup(JSON.parse(await file.text()));
       updateData(next);
-      setImportMessage(`Loaded JSON backup: ${file.name}`);
-    } catch {
-      setImportMessage("JSON backup load failed. Please choose a Monthly Survival backup file.");
+
+      try {
+        const readyHouseholdId = await resolveCloudHousehold();
+
+        if (!readyHouseholdId) {
+          setImportMessage(`Loaded JSON backup: ${file.name}. Not saved to cloud yet; login then use Save Cloud.`);
+          return;
+        }
+
+        await saveCloudSnapshot(readyHouseholdId, next);
+        setImportMessage(`Loaded JSON backup: ${file.name}. Auto-saved to Supabase cloud.`);
+        setCloudMessage("Imported JSON backup and saved a new Supabase snapshot.");
+      } catch (cloudError) {
+        const message = cloudErrorMessage(cloudError, "save");
+        setImportMessage(`Loaded JSON backup: ${file.name}. Cloud save failed: ${message}`);
+        setCloudMessage(message);
+      }
+    } catch (error) {
+      const message = error instanceof SyntaxError
+        ? "JSON backup load failed. The selected file is not valid JSON."
+        : error instanceof Error
+          ? error.message
+          : "JSON backup load failed. Please choose a Monthly Survival backup file.";
+
+      setImportMessage(message);
     } finally {
+      setCloudBusy(false);
       event.target.value = "";
     }
   }
@@ -285,16 +292,12 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
               {cloudUser ? (
                 <>
                   <div className="cloud-user">{cloudUser.email ?? "Logged in"}</div>
-                  <button className="ghost" disabled={cloudBusy} onClick={saveCloud}>Save Cloud</button>
-                  <button className="ghost" disabled={cloudBusy} onClick={loadCloud}>Load Cloud</button>
+                  <button className="ghost" disabled={cloudBusy || !cloudUser} onClick={saveCloud}>Save Cloud</button>
+                  <button className="ghost" disabled={cloudBusy || !cloudUser} onClick={loadCloud}>Load Cloud</button>
                   <button className="ghost" disabled={cloudBusy} onClick={logoutCloud}>Logout</button>
                 </>
               ) : (
-                <>
-                  <input value={cloudEmail} onChange={(event) => setCloudEmail(event.target.value)} placeholder="email" type="email" />
-                  <input value={cloudPassword} onChange={(event) => setCloudPassword(event.target.value)} placeholder="password" type="password" />
-                  <button className="ghost" disabled={cloudBusy} onClick={loginCloud}>Login / Create</button>
-                </>
+                <div className="cloud-user">Cloud session is not ready. Logout and login again from the first page.</div>
               )}
               <div className="cloud-message">{cloudMessage}</div>
             </div>
