@@ -21,6 +21,8 @@ const navItems: Array<{ key: ViewKey; href: string; label: string }> = [
   { key: "claims", href: "/claims", label: "🧾 รอรับเงิน" },
 ];
 
+const CLOUD_AUTO_LOAD_KEY = "monthly-survival-cloud-auto-loaded-v1";
+
 const categoryLabels: Record<string, string> = {
   salary: "เงินเดือน",
   ot_income: "ค่า OT",
@@ -133,7 +135,23 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
         setCloudUser(user);
         const nextHouseholdId = await ensureHousehold(user);
         setHouseholdId(nextHouseholdId);
-        setCloudMessage("Cloud ready. Use Save Cloud or Load Cloud.");
+        const autoLoadKey = `${CLOUD_AUTO_LOAD_KEY}:${user.id}`;
+
+        if (window.sessionStorage.getItem(autoLoadKey)) {
+          setCloudMessage("Cloud ready. Use Save Cloud or Load Cloud.");
+          return;
+        }
+
+        const latest = await loadLatestCloudSnapshot(nextHouseholdId);
+        window.sessionStorage.setItem(autoLoadKey, "1");
+
+        if (!latest) {
+          setCloudMessage("Cloud ready. No saved snapshot yet. Load JSON once, then it will be available next login.");
+          return;
+        }
+
+        updateData(normalizeFinanceData(latest));
+        setCloudMessage("Loaded latest Supabase cloud snapshot.");
       })
       .catch((error) => setCloudMessage(cloudErrorMessage(error, "setup")));
   }, []);
@@ -162,6 +180,7 @@ export function FinanceApp({ initialView }: { initialView: ViewKey }) {
     setCloudBusy(true);
     try {
       await logoutCloudUser();
+      if (cloudUser?.id) window.sessionStorage.removeItem(`${CLOUD_AUTO_LOAD_KEY}:${cloudUser.id}`);
       setCloudUser(null);
       setHouseholdId("");
       setCloudMessage("Logged out.");
