@@ -1,10 +1,10 @@
 import { AuthGate } from "../../components/AuthGate";
 import { FinanceApp } from "../../components/FinanceApp";
 
-export default function CompanyExpensePage() {
+export default function AppDashboardPage() {
   return (
     <AuthGate>
-      <FinanceApp initialView="company-expense" />
+      <FinanceApp initialView="dashboard" />
     </AuthGate>
   );
 }
