@@ -880,17 +880,21 @@ function Wallets({ data }: { data: FinanceData }) {
 
 function Cards({ data }: { data: FinanceData }) {
   const summaries = cardSummaries(data);
+  const totalTransport = summaries.reduce((sum, card) => sum + card.transportAmount, 0);
+  const totalTransportCount = summaries.reduce((sum, card) => sum + card.transportCount, 0);
   return (
     <section className="stack">
       <div className="hero-grid">
+        <Kpi title="Fuel/Transport This Cycle" value={formatMoney(totalTransport)} tone={totalTransport ? "amber" : "green"} />
+        <Kpi title="Transport Items" value={String(totalTransportCount)} tone="blue" />
         {data.cards.map((card) => (
           <Kpi key={card.card_name} title={card.card_name} value={formatMoney(cardOutstanding(card.card_name, data.card_items, data.transactions))} tone="red" />
         ))}
       </div>
       <Panel title="Card Command Summary">
         <Table
-          headers={["Card", "Outstanding", "Review", "Unpaid Items", "Cycle", "Due Day"]}
-          rows={summaries.map((card) => [card.card, formatMoney(card.outstanding), formatMoney(card.reviewAmount), card.unpaidCount, card.statementCycle, card.dueDay])}
+          headers={["Card", "Outstanding", "Fuel/Transport", "Transport Items", "Review", "Unpaid Items", "Cycle", "Due Day"]}
+          rows={summaries.map((card) => [card.card, formatMoney(card.outstanding), formatMoney(card.transportAmount), card.transportCount, formatMoney(card.reviewAmount), card.unpaidCount, card.statementCycle, card.dueDay])}
         />
       </Panel>
       <Panel title="Card Items / Statement Reconcile">
@@ -906,7 +910,6 @@ function Cards({ data }: { data: FinanceData }) {
 function Claims({ data }: { data: FinanceData }) {
   const review = data.claim_items.filter((item) => item.status === "review" || item.status === "claimable");
   const command = claimCommandCenter(data);
-  const reconciliation = reconciliationItems(data).slice(0, 12);
   return (
     <section className="stack">
       <div className="hero-grid">
@@ -931,10 +934,6 @@ function Claims({ data }: { data: FinanceData }) {
         <Table headers={["Source", "Amount", "Split", "Status", "Note"]} rows={review.map((item) => [item.source_id, formatMoney(item.amount), labelStatus(item.work_personal_mixed), labelStatus(item.status), item.note ?? ""])} />
       </Panel>
       </div>
-
-      <Panel title="Claim Center: waiting for Daily match">
-        <Table headers={["Source", "Title", "Amount", "Status"]} rows={reconciliation.map((item) => [item.source, item.title, formatMoney(item.amount), item.status])} />
-      </Panel>
 
       <div className="two-col">
         <Panel title="Checklist ก่อนส่งบัญชี">

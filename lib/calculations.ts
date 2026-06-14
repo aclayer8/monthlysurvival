@@ -128,6 +128,28 @@ export function cardOutstanding(cardName: string, cardItems: CardItem[], transac
   return Math.max(0, cardItemCharges + dailyCreditCharges - payments);
 }
 
+export function cardTransportAmount(cardName: string, cardItems: CardItem[], transactions: Transaction[]): { amount: number; count: number } {
+  const cardItemTransport = cardItems.filter((item) =>
+    item.card === cardName &&
+    item.statement_month === ACTIVE_BUDGET &&
+    item.paid_status === "unpaid" &&
+    item.category === "transport"
+  );
+  const transactionTransport = transactions.filter((transaction) =>
+    transaction.card === cardName &&
+    transaction.payment_method === "credit_card" &&
+    moneyOut(transaction) &&
+    transaction.linked_type !== "card_item" &&
+    transaction.budget_month === ACTIVE_BUDGET &&
+    transaction.category === "transport"
+  );
+
+  return {
+    amount: [...cardItemTransport, ...transactionTransport].reduce((sum, item) => sum + item.amount, 0),
+    count: cardItemTransport.length + transactionTransport.length,
+  };
+}
+
 export function categoryBreakdown(data: FinanceData): Array<{ category: string; amount: number; share: number }> {
   const totals = new Map<string, number>();
   for (const transaction of data.transactions) {
@@ -231,11 +253,14 @@ export function cardSummaries(data: FinanceData) {
     const items = data.card_items.filter((item) => item.card === card.card_name);
     const reviewAmount = items.filter((item) => item.claim_status === "review" || item.claim_status === "mixed").reduce((sum, item) => sum + item.amount, 0);
     const unpaidCount = items.filter((item) => item.paid_status === "unpaid").length;
+    const transport = cardTransportAmount(card.card_name, data.card_items, data.transactions);
     return {
       card: card.card_name,
       statementCycle: card.statement_cycle,
       dueDay: card.due_day,
       outstanding: cardOutstanding(card.card_name, data.card_items, data.transactions),
+      transportAmount: transport.amount,
+      transportCount: transport.count,
       reviewAmount,
       unpaidCount,
     };
