@@ -1,5 +1,5 @@
 import { daysLeftInPeriod, lastBusinessDay, toDate, toIsoDate } from "./budget";
-import { sameCardName } from "./card-cycles";
+import { canonicalCardName, sameCardName } from "./card-cycles";
 import type { Bill, Card, CardItem, CompanyExpenseItem, FinanceData, OtClaimItem, Transaction, WalletSnapshot } from "./types";
 
 const TODAY = "2026-06-14";
@@ -133,6 +133,46 @@ export function currentCycleBillsForData(data: FinanceData): Bill[] {
 
 export function nextPaydayBillsForData(data: FinanceData): Bill[] {
   return unpaidBills(data.bills, data.transactions).filter((bill) => plannedPayDate(bill) >= NEXT_PAYDAY);
+}
+
+function cardForBill(bill: Bill, cards: Card[]): Card | undefined {
+  const candidates = [bill.name, bill.source, bill.id ?? ""];
+  for (const candidate of candidates) {
+    const canonical = canonicalCardName(candidate);
+    const card = cards.find((item) => sameCardName(item.card_name, canonical));
+    if (card && sameCardName(candidate, card.card_name)) return card;
+  }
+  return undefined;
+}
+
+function dailyCardChargesDueThisPayday(card: Card, data: FinanceData): number {
+  return data.transactions
+    .filter((transaction) =>
+      sameCardName(transaction.card, card.card_name) &&
+      transaction.payment_method === "credit_card" &&
+      moneyOut(transaction) &&
+      isCashCleared(transaction) &&
+      transaction.linked_type !== "card_item" &&
+      transaction.budget_month === ACTIVE_BUDGET &&
+      dueInNextPaydayWindow(cardStatementDueDate(card, transaction.date))
+    )
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+}
+
+export function nextPaydayBillsWithCardAdjustments(data: FinanceData): Bill[] {
+  return nextPaydayBillsForData(data).map((bill) => {
+    const card = cardForBill(bill, data.cards);
+    if (!card) return bill;
+
+    const adjustment = dailyCardChargesDueThisPayday(card, data);
+    if (!adjustment) return bill;
+
+    return {
+      ...bill,
+      amount: bill.amount + adjustment,
+      source: `${bill.source}; +${formatMoney(adjustment)} new ${card.card_name} charges before statement cut`,
+    };
+  });
 }
 
 export function cardOutstanding(cardName: string, cardItems: CardItem[], transactions: Transaction[]): number {
@@ -412,7 +452,7 @@ export function dashboardSummary(data: FinanceData) {
   const reserved = wallets.filter((wallet) => wallet.wallet === "MAKE").reduce((sum, wallet) => sum + wallet.current, 0);
   const spendable = cashAvailable - reserved;
   const bills = currentCycleBillsForData(data);
-  const nextBills = nextPaydayBillsForData(data);
+  const nextBills = nextPaydayBillsWithCardAdjustments(data);
   const unpaidBillTotal = bills.reduce((sum, bill) => sum + bill.amount, 0);
   const nextPaydayAllocation = nextBills.reduce((sum, bill) => sum + bill.amount, 0);
   const futureDailyIncome = data.transactions

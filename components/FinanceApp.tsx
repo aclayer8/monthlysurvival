@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { budgetMonthForDate } from "../lib/budget";
-import { cardOutstanding, cardSummaries, categoryBreakdown, claimCommandCenter, companyExpenseSummary, dashboardSummary, formatMoney, monthlyCashflow, otClaimSummary, otExpectedAmount, reconciliationItems, unpaidBills, validationSignals, walletBalances } from "../lib/calculations";
+import { cardOutstanding, cardSummaries, categoryBreakdown, claimCommandCenter, companyExpenseSummary, dashboardSummary, formatMoney, monthlyCashflow, nextPaydayBillsWithCardAdjustments, otClaimSummary, otExpectedAmount, reconciliationItems, unpaidBills, validationSignals, walletBalances } from "../lib/calculations";
 import { ensureHousehold, getCurrentCloudUser, loadLatestCloudSnapshot, logoutCloudUser, saveCloudSnapshot, type CloudUser } from "../lib/cloud-sync";
 import { cloudErrorMessage } from "../lib/cloud-errors";
 import { downloadCsvBundle, importCsvBundle } from "../lib/csv";
@@ -355,8 +355,7 @@ function CleanDashboard({ data }: { data: FinanceData }) {
   const urgentBills = unpaidBills(data.bills, data.transactions)
     .filter((bill) => (bill.planned_pay_date ?? bill.due_date) < summary.nextPayday)
     .slice(0, 6);
-  const nextPaydayBills = unpaidBills(data.bills, data.transactions)
-    .filter((bill) => (bill.planned_pay_date ?? bill.due_date) >= summary.nextPayday)
+  const nextPaydayBills = nextPaydayBillsWithCardAdjustments(data)
     .slice(0, 10);
   const signals = validationSignals(data);
   const reconciliation = reconciliationItems(data).slice(0, 10);
@@ -467,8 +466,7 @@ function Dashboard({ data }: { data: FinanceData }) {
   const categories = categoryBreakdown(data).slice(0, 6);
   const cashflow = monthlyCashflow(data);
   const bills = unpaidBills(data.bills, data.transactions).slice(0, 6);
-  const nextPaydayBills = unpaidBills(data.bills, data.transactions)
-    .filter((bill) => (bill.planned_pay_date ?? bill.due_date) >= summary.nextPayday)
+  const nextPaydayBills = nextPaydayBillsWithCardAdjustments(data)
     .slice(0, 8);
   const signals = validationSignals(data);
   const reconciliation = reconciliationItems(data).slice(0, 10);
